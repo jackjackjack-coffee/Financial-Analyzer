@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>10-K Financial Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; scroll-behavior: smooth; }
+  body { font-family: 'Source Sans 3', sans-serif; background: #f2f0ec; color: #1a1a1a; min-height: 100vh; }
+  button, input, select, textarea { font-family: inherit; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #f2f0ec; }
+  ::-webkit-scrollbar-thumb { background: #c8c0b0; border-radius: 3px; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+  .fade-in { animation: fadeInUp .3s ease; }
+
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white !important; }
+    #printable { padding: 0 !important; max-width: 100% !important; }
+    header, footer { display: none !important; }
+    @page { margin: 1.5cm; size: A4; }
+    .page-break { break-before: page; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+
+<!-- React + Babel -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="project/fa-components.jsx"></script>
+<script type="text/babel" src="project/fa-results.jsx"></script>
+<script type="text/babel" src="project/fa-app.jsx"></script>
+</body>
+</html>
