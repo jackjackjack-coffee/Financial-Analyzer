@@ -60,12 +60,29 @@ async function extractPDFText(file) {
 }
 
 // ── Claude API call with retry ───────────────────────────────────────────────
-async function claudeCall(prompt) {
+async function claudeCall(prompt, apiKey) {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const text = await window.claude.complete({
-        messages: [{ role: 'user', content: prompt }],
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-calls': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 2048,
+          messages: [{ role: 'user', content: prompt }],
+        }),
       });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `API error ${response.status}`);
+      }
+      const data = await response.json();
+      const text = data.content?.[0]?.text ?? '';
       const parsed = parseJSON(text);
       if (parsed) return parsed;
     } catch (err) {
@@ -76,7 +93,7 @@ async function claudeCall(prompt) {
 }
 
 // ── Three-pass analysis (short, targeted prompts) ────────────────────────────
-async function analyzeDocument(slices, onStep) {
+async function analyzeDocument(slices, onStep, apiKey) {
   const { front, financials, cashflows, mda } = slices;
 
   // ── Pass 1: Company overview + income statement ──
@@ -92,7 +109,7 @@ FILING TEXT:
 ${front}
 
 FINANCIAL STATEMENTS:
-${financials.slice(0, 3000)}`
+${financials.slice(0, 3000)}`, apiKey
   );
 
   // ── Pass 2: Balance sheet + cash flow + ratios ──
@@ -108,7 +125,7 @@ BALANCE SHEET + FINANCIALS:
 ${financials.slice(2000, 5000)}
 
 CASH FLOW:
-${cashflows.slice(0, 2500)}`
+${cashflows.slice(0, 2500)}`, apiKey
   );
 
   // ── Pass 3: DCF + flags + footnotes ──
@@ -124,7 +141,7 @@ FILING TEXT:
 ${mda.slice(0, 3000)}
 
 FINANCIALS:
-${financials.slice(0, 2000)}`
+${financials.slice(0, 2000)}`, apiKey
   );
 
   return {
@@ -144,6 +161,10 @@ const persistSaved = (arr) => { try { localStorage.setItem(STORE_KEY, JSON.strin
 // ══════════════════════════════════════════════════════════════════════════════
 // App
 // ══════════════════════════════════════════════════════════════════════════════
+const API_KEY_STORE = 'fin-analyzer-apikey';
+const loadApiKey   = () => { try { return localStorage.getItem(API_KEY_STORE) || ''; } catch { return ''; } };
+const saveApiKey   = (k) => { try { localStorage.setItem(API_KEY_STORE, k); } catch {} };
+
 function App() {
   const [ticker,      setTicker]      = React.useState('');
   const [files,       setFiles]       = React.useState([null, null]);
@@ -155,11 +176,20 @@ function App() {
   const [compareMode, setCompareMode] = React.useState(false);
   const [showSaved,   setShowSaved]   = React.useState(false);
   const [saved,       setSaved]       = React.useState(loadSaved);
+  const [apiKey,      setApiKeyState] = React.useState(loadApiKey);
+  const [showApiKey,  setShowApiKey]  = React.useState(false);
+
+  const handleApiKeyChange = (k) => { setApiKeyState(k); saveApiKey(k); };
 
   const handleFile = (file, idx) => setFiles(prev => { const n = [...prev]; n[idx] = file; return n; });
 
   const handleAnalyze = async () => {
     if (!files[0]) return;
+    if (!apiKey.trim()) {
+      setError('Please enter your Anthropic API key above before analyzing.');
+      setPhase('error');
+      return;
+    }
     setPhase('analyzing');
     setProgress(0);
     setError(null);
@@ -169,13 +199,13 @@ function App() {
     try {
       // Extract + analyze primary PDF
       const slicesA = await extractPDFText(files[0]);
-      const resA    = await analyzeDocument(slicesA, setProgress);
+      const resA    = await analyzeDocument(slicesA, setProgress, apiKey);
       setDataA(resA);
 
       // Optionally extract + analyze secondary PDF
       if (compareMode && files[1]) {
         const slicesB = await extractPDFText(files[1]);
-        const resB    = await analyzeDocument(slicesB, () => {});
+        const resB    = await analyzeDocument(slicesB, () => {}, apiKey);
         setDataB(resB);
       }
 
@@ -210,7 +240,7 @@ function App() {
   };
   const handleExportPDF = () => window.print();
 
-  const canRun = !!files[0] && phase !== 'analyzing';
+  const canRun = !!files[0] && !!apiKey.trim() && phase !== 'analyzing';
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', flexDirection: 'column' }}>
@@ -225,6 +255,41 @@ function App() {
         {/* ── Input screens ── */}
         {(phase === 'idle' || phase === 'error') && (
           <div className="fade-in">
+
+            {/* API Key section */}
+            <div style={{ background: C.surface, border: `1.5px solid ${apiKey ? C.border : C.gold}`, borderRadius: 10, padding: '14px 20px', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                  Anthropic API Key
+                </label>
+                {apiKey && (
+                  <button onClick={() => setShowApiKey(s => !s)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.muted, padding: '2px 6px' }}>
+                    {showApiKey ? 'hide' : 'show / edit'}
+                  </button>
+                )}
+              </div>
+              {(!apiKey || showApiKey) ? (
+                <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={e => handleApiKeyChange(e.target.value)}
+                    placeholder="sk-ant-..."
+                    style={{ flex: 1, border: `1.5px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontSize: 14, fontFamily: 'monospace', outline: 'none', background: C.bg }}
+                    onFocus={e => e.target.style.borderColor = C.navy}
+                    onBlur={e => e.target.style.borderColor = C.border}
+                  />
+                  {apiKey && <button onClick={() => setShowApiKey(false)} style={{ ...btn('secondary'), fontSize: 12, padding: '6px 12px' }}>Save</button>}
+                </div>
+              ) : (
+                <div style={{ marginTop: 4, fontSize: 13, color: C.success, fontWeight: 600 }}>
+                  ✓ API key saved · <span style={{ fontFamily: 'monospace', fontSize: 12, color: C.muted }}>{apiKey.slice(0, 12)}…</span>
+                </div>
+              )}
+              {!apiKey && <div style={{ marginTop: 6, fontSize: 12, color: C.muted }}>Required to call Claude. Your key is stored locally and never sent anywhere except Anthropic's API.</div>}
+            </div>
+
             <TickerSection ticker={ticker} setTicker={setTicker}/>
 
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 22, marginBottom: 18 }}>
