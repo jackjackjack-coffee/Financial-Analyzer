@@ -60,13 +60,15 @@ async function extractPDFText(file) {
 }
 
 // ── Claude API call with retry ───────────────────────────────────────────────
-async function claudeCall(prompt) {
+async function claudeCall(prompt, apiKey) {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
+      const body = { prompt };
+      if (apiKey) body.apiKey = apiKey;
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify(body),
       });
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
@@ -83,7 +85,7 @@ async function claudeCall(prompt) {
 }
 
 // ── Three-pass analysis (short, targeted prompts) ────────────────────────────
-async function analyzeDocument(slices, onStep) {
+async function analyzeDocument(slices, onStep, apiKey) {
   const { front, financials, cashflows, mda } = slices;
 
   // ── Pass 1: Company overview + income statement ──
@@ -100,7 +102,7 @@ ${front}
 
 FINANCIAL STATEMENTS:
 ${financials.slice(0, 3000)}`
-  );
+  , apiKey);
 
   // ── Pass 2: Balance sheet + cash flow + ratios ──
   onStep(2);
@@ -116,7 +118,7 @@ ${financials.slice(2000, 5000)}
 
 CASH FLOW:
 ${cashflows.slice(0, 2500)}`
-  );
+  , apiKey);
 
   // ── Pass 3: DCF + flags + footnotes ──
   onStep(3);
@@ -132,7 +134,7 @@ ${mda.slice(0, 3000)}
 
 FINANCIALS:
 ${financials.slice(0, 2000)}`
-  );
+  , apiKey);
 
   return {
     ...(res1 || {}),
@@ -151,6 +153,8 @@ const persistSaved = (arr) => { try { localStorage.setItem(STORE_KEY, JSON.strin
 // ══════════════════════════════════════════════════════════════════════════════
 // App
 // ══════════════════════════════════════════════════════════════════════════════
+const API_KEY_STORE = 'fin-analyzer-apikey';
+
 function App() {
   const [ticker,      setTicker]      = React.useState('');
   const [files,       setFiles]       = React.useState([null, null]);
@@ -162,6 +166,12 @@ function App() {
   const [compareMode, setCompareMode] = React.useState(false);
   const [showSaved,   setShowSaved]   = React.useState(false);
   const [saved,       setSaved]       = React.useState(loadSaved);
+  const [userApiKey,  setUserApiKey]  = React.useState(() => { try { return localStorage.getItem(API_KEY_STORE) || ''; } catch { return ''; } });
+
+  const handleApiKeyChange = (key) => {
+    setUserApiKey(key);
+    try { key ? localStorage.setItem(API_KEY_STORE, key) : localStorage.removeItem(API_KEY_STORE); } catch {}
+  };
 
   const handleFile = (file, idx) => setFiles(prev => { const n = [...prev]; n[idx] = file; return n; });
 
@@ -176,13 +186,13 @@ function App() {
     try {
       // Extract + analyze primary PDF
       const slicesA = await extractPDFText(files[0]);
-      const resA    = await analyzeDocument(slicesA, setProgress);
+      const resA    = await analyzeDocument(slicesA, setProgress, userApiKey);
       setDataA(resA);
 
       // Optionally extract + analyze secondary PDF
       if (compareMode && files[1]) {
         const slicesB = await extractPDFText(files[1]);
-        const resB    = await analyzeDocument(slicesB, () => {});
+        const resB    = await analyzeDocument(slicesB, () => {}, userApiKey);
         setDataB(resB);
       }
 
@@ -245,6 +255,8 @@ function App() {
               </div>
               <UploadZone onFile={handleFile} compareMode={compareMode} files={files}/>
             </div>
+
+            <ApiKeyInput apiKey={userApiKey} onChange={handleApiKeyChange}/>
 
             {/* Error banner */}
             {phase === 'error' && error && (

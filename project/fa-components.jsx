@@ -295,4 +295,52 @@ function SavedPanel({ saved, onLoad, onDelete, onClose }) {
   );
 }
 
-Object.assign(window, { C, fmtM, fmtPct, fmtRatio, fmtX, yoyPct, btn, Header, TickerSection, UploadZone, ProgressSteps, SavedPanel });
+// ── API Key Input ────────────────────────────────────────────────────────────
+function ApiKeyInput({ apiKey, onChange }) {
+  const [open, setOpen] = React.useState(false);
+  const [show, setShow] = React.useState(false);
+
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: apiKey ? C.success : C.muted, padding: 0 }}>
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+          <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
+          <path d="M7.5 7.5L11 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+        {apiKey ? 'API key saved' : 'Use your own Anthropic API key (optional)'}
+        <span style={{ fontSize: 10, transition: 'transform .2s', display: 'inline-block', transform: open ? 'rotate(180deg)' : 'none' }}>▾</span>
+      </button>
+      {open && (
+        <div className="fade-in" style={{ marginTop: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '14px 16px' }}>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
+            Your key is used only when the server key is unavailable. Stored locally in your browser.
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type={show ? 'text' : 'password'}
+              value={apiKey}
+              onChange={e => onChange(e.target.value.trim())}
+              placeholder="sk-ant-..."
+              style={{ flex: 1, border: `1.5px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontSize: 13, outline: 'none', background: C.bg, fontFamily: 'monospace' }}
+              onFocus={e => e.target.style.borderColor = C.navy}
+              onBlur={e => e.target.style.borderColor = C.border}
+            />
+            <button onClick={() => setShow(s => !s)}
+              style={{ ...btn('secondary'), fontSize: 12, padding: '7px 12px' }}>
+              {show ? 'Hide' : 'Show'}
+            </button>
+            {apiKey && (
+              <button onClick={() => onChange('')}
+                style={{ ...btn('secondary'), fontSize: 12, padding: '7px 12px', color: C.danger }}>
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+Object.assign(window, { C, fmtM, fmtPct, fmtRatio, fmtX, yoyPct, btn, Header, TickerSection, UploadZone, ProgressSteps, SavedPanel, ApiKeyInput });
